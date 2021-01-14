@@ -1,15 +1,39 @@
 from constants import *
 from typing import Tuple, List
 from ctypes import sizeof
-from machine import uart
+import serial
+import time
 
 class RFID:
     def __init__(self):
         self.debug = False
-        self.baudRate = 9600
         self.opcode = ''
-        self.uart = UART(1, self.baudRate)
-        self.uart.init(baudRate=9600,bits=8,parity=None,stop=1,rx=12,tx=14)
+        self.ser = serial.Serial(
+            port='/dev/ttyUSB0',
+            baudrate=115200,
+            parity=serial.PARITY_ODD,
+            #stopbits=serial.STOPBITS_TWO,
+            #bytesize=serial.SEVENBITS
+        )
+
+    def startReading(self):
+        self.disableReadFilter()
+        configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
+        self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob)
+        time.sleep(.1)
+        while True:
+            returnMsg = self.ser.read()
+            #print(returnMsg)
+
+    def disableReadFilter(self):
+        self.setReaderConfiguration(0x0C, 0x00)
+
+    def setReaderConfiguration(self, option1, option2):
+        data = []
+        data.append(1)
+        data.append(option1)
+        data.append(option2)
+        self.sendMessage(TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS, data)
 
     def setBaud(self, baudRate: int) -> None:
         pass
@@ -26,7 +50,7 @@ class RFID:
 
     def stopReading(self) -> None:
         configBlob = [0x00, 0x00, 0x02]
-        sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, waitforresponse=false) #Do not wait for response
+        self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, waitforresponse=False) #Do not wait for response
 
     def setOutputPower(self, powerOut: int) -> None:
         pass
@@ -34,42 +58,32 @@ class RFID:
     def getRate(self) -> int:
         pass
 
-    def sendMessage(self, opcode: int, data: List[int], timeout: int = COMMAND_TIME_OUT, waitforresponse: bool = True) -> List[str]:
-        #TODO: use bytearray
-        msg = [None] * MAX_MSG_SIZE
-        msg[0] = 0xFF #universal header
-        msg[1] = len(data)
-        msg[2] = opcode
-        for i in range(len(data)):
-            msg[3 + i] = data[i]
+    def sendMessage(self, opcode: int, data: List[int], timeout: int = COMMAND_TIME_OUT, waitforresponse: bool = True) -> None:
+        msg = bytearray()
+        msg.append(len(data))
+        msg.append(opcode)
+        for i in data:
+            msg.append(i)
         self.sendCommand(timeout, waitforresponse, msg)
-        if waitforresponse == True:
-            receivedMsg = self.receiveMessage()
-            #msgLength = receivedMsg[1] + 7
-            #crc = self.calculateCRC(receivedMsg[1], msgLength - 3); #Remove header, remove 2 crc bytes
-            return receivedMsg
-        else:
-            return []
 
-    def sendCommand(self, timeout: int, waitforresponse: bool, msg: List[int]) -> None:
-        msgLength = msg[1]
-        self.opcode = msg[2] # to see if response from module has same opcode
+    def sendCommand(self, timeout: int, waitforresponse: bool, msg: bytearray) -> None:
+        #self.opcode = msg[1] # to see if response from module has same opcode
+        msg.insert(0,0xFF) # universal header at beginnning
 
         # attach crc
-        crc = self.calculateCRC(msg[1], msgLength + 2)
-        msg[msgLength + 3] = crc >> 8
-        msg[msgLength + 4] = crc & 0xFF
-        if self.debug == True:
-            printMessage(msg)
+        crc = self.calculateCRC(msg)
+        msg.append(crc >> 8)
+        msg.append(crc & 0xFF)
+        #if self.debug == True:
+            #printMessage(msg)
+        print(msg)
+        self.ser.write(msg)
 
-        self.sendToUART(msg)
-
-
-    def calculateCRC(self, buf: int, len: int) -> int:
+    def calculateCRC(self, buf):
         crc = 0xFFFF
-        for i in range(len):
-            crc = ((crc << 4) | (buf[i] >> 4)) ^ crctable[crc >> 12]
-            crc = ((crc << 4) | (buf[i] & 0x0F)) ^ crctable[crc >> 12]
+        for i in range(1,len(buf)):
+            crc = (((crc << 4) & 0xFFFF) | (buf[i] >> 4)) ^ crctable[crc >> 12]
+            crc = (((crc << 4) & 0xFFFF) | (buf[i] & 0x0F)) ^ crctable[crc >> 12]
 
         return crc
 
