@@ -3,6 +3,8 @@ from typing import Tuple, List
 from ctypes import sizeof
 import serial
 import time
+import codecs
+import chardet
 
 class RFID:
     def __init__(self):
@@ -17,13 +19,50 @@ class RFID:
         )
 
     def startReading(self):
+        #self.ser.reset_input_buffer()
         self.disableReadFilter()
         configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob)
-        time.sleep(.1)
-        while True:
-            returnMsg = self.ser.read()
-            #print(returnMsg)
+
+    def printByteArray(self, tag):
+        txt = ""
+        amtToPrint = int.from_bytes(tag[1],"little") + 5
+        if amtToPrint > MAX_MSG_SIZE:
+            amtToPrint = MAX_MSG_SIZE
+
+        for i in tag:
+            if int.from_bytes(i,"little") < 0x10:
+                txt += i
+            else:
+                txt += i
+
+        print("[ " + txt + " ]")
+
+    def receiveOneTag(self):
+        msg = []
+        spot = 0
+        message_length = MAX_MSG_SIZE - 1
+        while spot < message_length:
+            if self.ser.inWaiting() > 0:
+                msg.append(self.ser.read(size=1))
+                if spot == 1:
+                    message_length = int.from_bytes(msg[1],"little") + 7
+                spot+=1
+                spot %= MAX_MSG_SIZE
+        return msg
+
+    def readTagEPC(epc, epcLength, timeOut):
+        bank = 0x01
+        address = 0x02
+        return readData(bank, address, epc, epcLength, timeOut)    
+
+    def readData(bank, address, epc, epcLength, timeOut):
+        data = bytearray
+        data.append(timeOut >> 8 & 0xFF)
+        data.append(timeOut & 0xFF)
+        data.append(bank)
+
+        data.append(address >> (8 * (3-0)) & 0xFF)
 
     def disableReadFilter(self):
         self.setReaderConfiguration(0x0C, 0x00)
@@ -76,7 +115,6 @@ class RFID:
         msg.append(crc & 0xFF)
         #if self.debug == True:
             #printMessage(msg)
-        print(msg)
         self.ser.write(msg)
 
     def calculateCRC(self, buf):
@@ -86,9 +124,6 @@ class RFID:
             crc = (((crc << 4) & 0xFFFF) | (buf[i] & 0x0F)) ^ crctable[crc >> 12]
 
         return crc
-
-    def printMessage(self, msg: List[int]) -> None:
-        print(msg)
 
     def receiveMessage(self) -> List[str]:
         i = 0
