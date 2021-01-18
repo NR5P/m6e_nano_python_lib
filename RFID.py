@@ -147,7 +147,7 @@ class RFID:
             print("response: ")
             self.printMessageArray(receiveArray)
 
-        crc = self.calculateCRC(receiveArray[1:-3])
+        crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
         if (receiveArray[msgLength - 2] != (crc >> 8)) or (receiveArray[msgLength - 1] != (crc & 0xFF)):
             receiveArray[0] = ERROR_CORRUPT_RESPONSE
             if (self.debug == True):
