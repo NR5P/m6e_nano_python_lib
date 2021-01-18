@@ -109,7 +109,6 @@ class RFID:
         return self.sendCommand(timeout, waitforresponse, msg)
 
     def sendCommand(self, timeout: int, waitforresponse: bool, msg: bytearray) -> List:
-        self.ser.reset_input_buffer() # clear anything in buffer
         # self.opcode = msg[1] to see if response from module has same opcode
         msg.insert(0,0xFF) # universal header at beginnning
         msgLength = msg[1]
@@ -119,8 +118,7 @@ class RFID:
         crc = self.calculateCRC(msg)
         msg.append(crc >> 8)
         msg.append(crc & 0xFF)
-        #if self.debug == True:
-            #printMessage(msg)
+        self.ser.reset_input_buffer() # clear anything in buffer
         self.ser.write(msg)
 
         # wait for response with timeout
@@ -144,7 +142,6 @@ class RFID:
                 if spot == 1:
                     msgLength = receiveArray[1] + 7
                 spot += 1
-                spot %= MAX_MSG_SIZE
 
         if self.debug == True:
             print("response: ")
@@ -155,14 +152,14 @@ class RFID:
             receiveArray[0] = ERROR_CORRUPT_RESPONSE
             if (self.debug == True):
                 print("CORRUPT RESPONSE")
-                return
+                return receiveArray
 
         # If crc is ok, check that opcode matches (did we get a response to the command we sent or a different one?)
         if (receiveArray[2] != opcode):
             receiveArray[0] = ERROR_WRONG_OPCODE_RESPONSE
             if (self.debug == True):
                 print("WRONG OPCODE RESPONSE")
-                return
+                return receiveArray
 
         # If everything is ok, load all ok into msg array
         receiveArray[0] = ALL_GOOD
