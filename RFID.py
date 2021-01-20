@@ -1,10 +1,7 @@
 from constants import *
 from typing import Tuple, List
-from ctypes import sizeof
 import serial
 import time
-import codecs
-import chardet
 
 class RFID:
     def __init__(self):
@@ -43,6 +40,20 @@ class RFID:
         bank = 0x01
         address = 0x02
         return self.readData(bank, address, 3)    
+
+    def setRegion(self):
+        # 0x04 = IN
+        # 0x05 = JP
+        # 0x06 = PRC
+        # 0x08 = EU3
+        # 0x09 = KR2
+        # 0x0B = AU
+        # 0x0C = NZ
+        # 0x0D = NAS2 (North America)
+        # 0xFF = OPEN
+        data = bytearray()
+        data.append(0x0D)
+        self.sendMessage(TMR_SR_OPCODE_SET_REGION, data)
 
     def readData(self, bank, address, timeOut):
         data = bytearray()
