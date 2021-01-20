@@ -64,7 +64,7 @@ class RFID:
             if status == 0x0000:
                 responseLength = receivedMsg[1]
                 for i in range(responseLength):
-                    returnArray[i] = receivedMsg[i + 5]
+                    returnArray.append(receivedMsg[i + 5])
                 return returnArray
 
     def disableReadFilter(self):
@@ -77,8 +77,12 @@ class RFID:
         data.append(option2)
         self.sendMessage(TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS, data)
 
-    def setBaud(self, baudRate: int) -> None:
-        pass
+    def setBaudRate(self, baudRate: int) -> None:
+        data = bytearray()
+        for i in range(2):
+            data.append(0xFF & (baudRate >> (8 * (2 - 1 - i))))
+
+        self.sendMessage(TMR_SR_OPCODE_SET_BAUD_RATE, data, waitforresponse=False)
 
     def readTag(self) -> Tuple[str, int]:
         """
@@ -94,11 +98,21 @@ class RFID:
         configBlob = [0x00, 0x00, 0x02]
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, waitforresponse=False) #Do not wait for response
 
-    def setOutputPower(self, powerOut: int) -> None:
-        pass
+    def setReadPower(self, powerSetting: int) -> None:
+        if powerSetting > 32767:
+            powerSetting = 2700
+        if powerSetting < -32768:
+            powerSetting = 0
 
-    def getRate(self) -> int:
-        pass
+        data = bytearray()
+        for i in range(2):
+            data.append(0xFF & (powerSetting >> (8 * (2 - 1 - i))))
+        self.sendMessage(TMR_SR_OPCODE_SET_READ_TX_POWER, data)
+
+    def getReadPower(self):
+        data = bytearray()
+        data.append(0x00)
+        self.sendMessage(TMR_SR_OPCODE_GET_READ_TX_POWER, data)
 
     def sendMessage(self, opcode: int, data: List[int], timeout: int = COMMAND_TIME_OUT, waitforresponse: bool = True) -> List:
         msg = bytearray()
@@ -165,7 +179,7 @@ class RFID:
         receiveArray[0] = ALL_GOOD
         return receiveArray
 
-    def calculateCRC(self, buf):
+    def calculateCRC(self, buf) -> int:
         crc = 0xFFFF
         for i in range(1,len(buf)):
             crc = (((crc << 4) & 0xFFFF) | (buf[i] >> 4)) ^ crctable[crc >> 12]
