@@ -10,16 +10,34 @@ class RFID:
         self.ser = serial.Serial(
             port='/dev/ttyUSB0',
             baudrate=115200,
-            parity=serial.PARITY_ODD,
-            #stopbits=serial.STOPBITS_TWO,
-            #bytesize=serial.SEVENBITS
         )
 
     def startReading(self):
-        #self.ser.reset_input_buffer()
+        self.ser.reset_input_buffer()
         self.disableReadFilter()
         configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob)
+
+    def setAntennaPort(self):
+        configBlob = [0x01, 0x01]
+        self.sendMessage(TMR_SR_OPCODE_SET_ANTENNA_PORT, configBlob)
+
+    # Sets the protocol of the module
+    # Currently only GEN2 has been tested and supported but others are listed here for reference
+    # and possible future support
+    # TMR_TAG_PROTOCOL_NONE              = 0x00
+    # TMR_TAG_PROTOCOL_ISO180006B        = 0x03
+    # TMR_TAG_PROTOCOL_GEN2              = 0x05
+    # TMR_TAG_PROTOCOL_ISO180006B_UCODE  = 0x06
+    # TMR_TAG_PROTOCOL_IPX64             = 0x07
+    # TMR_TAG_PROTOCOL_IPX256            = 0x08
+    # TMR_TAG_PROTOCOL_ATA               = 0x1D
+    def setTagProtocol(self, protocol = 0x05):
+        data = []
+        data.append(0) # Opcode expects 16-bits
+        data.append(protocol)
+
+        self.sendMessage(TMR_SR_OPCODE_SET_TAG_PROTOCOL, data)
 
     def printMessageArray(self, msg) -> None:
         if self.debug == True:
@@ -41,6 +59,13 @@ class RFID:
         address = 0x02
         return self.readData(bank, address, 3)    
 
+    #Get the version number from the module
+    def getVersion(self):
+        self.sendMessage(TMR_SR_OPCODE_VERSION, [])
+
+    def getPowerMode(self):
+        self.sendMessage(TMR_SR_OPCODE_GET_POWER_MODE, [])
+
     def setRegion(self):
         # 0x04 = IN
         # 0x05 = JP
@@ -52,7 +77,7 @@ class RFID:
         # 0x0D = NAS2 (North America)
         # 0xFF = OPEN
         data = bytearray()
-        data.append(0x0D)
+        data.append(0x08)
         self.sendMessage(TMR_SR_OPCODE_SET_REGION, data)
 
     def readData(self, bank, address, timeOut):
@@ -134,7 +159,6 @@ class RFID:
         return self.sendCommand(timeout, waitforresponse, msg)
 
     def sendCommand(self, timeout: int, waitforresponse: bool, msg: bytearray) -> List:
-        # self.opcode = msg[1] to see if response from module has same opcode
         msg.insert(0,0xFF) # universal header at beginnning
         msgLength = msg[1]
         opcode = msg[2]
@@ -159,15 +183,13 @@ class RFID:
         receiveArray = []
         while spot < msgLength:
             if (time.time() - startTime) > timeout:
-                print("NO RESPONSE FROM MODULE")
                 receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
-                return
+                return receiveArray
             if self.ser.inWaiting() > 0:
                 receiveArray.append(int.from_bytes(self.ser.read(size=1),"little"))
                 if spot == 1:
                     msgLength = receiveArray[1] + 7
                 spot += 1
-
         if self.debug == True:
             print("response: ")
             self.printMessageArray(receiveArray)
@@ -190,10 +212,12 @@ class RFID:
         receiveArray[0] = ALL_GOOD
         return receiveArray
 
-    def calculateCRC(self, buf) -> int:
+    def calculateCRC(self, buf):
         crc = 0xFFFF
         for i in range(1,len(buf)):
             crc = (((crc << 4) & 0xFFFF) | (buf[i] >> 4)) ^ crctable[crc >> 12]
             crc = (((crc << 4) & 0xFFFF) | (buf[i] & 0x0F)) ^ crctable[crc >> 12]
 
         return crc
+
+
