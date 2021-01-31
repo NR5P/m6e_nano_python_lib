@@ -12,11 +12,29 @@ class RFID:
             baudrate=115200,
         )
 
-    def startReading(self):
+    def startReading(self, rfOnTime, rfOffTime):
         self.ser.reset_input_buffer()
         self.disableReadFilter()
-        configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
-        self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob)
+        # below example on readtime = 480 off = 481
+        # ff 14 2f 00 00 01 22 00 00 05 0b 22 10 05 1b [01
+        # e0] [01 e1] 00 57 01 00 70 14
+
+        # working configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B, 0x01, 0xe0, 0x01, 0xe1, 0x00, 0x57, 0x01, 0x00]
+
+        configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B] 
+        configBlob.append(rfOnTime >> 8 & 0xFF)
+        configBlob.append(rfOnTime & 0xFF)
+        configBlob.append(rfOffTime >> 8 & 0xFF)
+        configBlob.append(rfOffTime & 0xFF)
+        configBlob.append(0)
+        configBlob.append(87)
+        configBlob.append(1)
+        configBlob.append(0)
+
+        #old configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
+
+
+        self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, timeout=None)
 
     def setAntennaPort(self):
         configBlob = [0x01, 0x01]
@@ -150,6 +168,11 @@ class RFID:
         data.append(0x00)
         self.sendMessage(TMR_SR_OPCODE_GET_READ_TX_POWER, data)
 
+    def getWritePower(self):
+        data = bytearray()
+        data.append(0x00)
+        self.sendMessage(TMR_SR_OPCODE_GET_WRITE_TX_POWER, data)
+
     def sendMessage(self, opcode: int, data: List[int], timeout: int = COMMAND_TIME_OUT, waitforresponse: bool = True) -> List:
         msg = bytearray()
         msg.append(len(data))
@@ -173,7 +196,7 @@ class RFID:
         # wait for response with timeout
         startTime = time.time()
         while self.ser.inWaiting() < 1:
-            if (time.time() - startTime) > timeout:
+            if (timeout != None and (time.time() - startTime) > timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
                 return
@@ -182,7 +205,7 @@ class RFID:
         spot = 0
         receiveArray = []
         while spot < msgLength:
-            if (time.time() - startTime) > timeout:
+            if (timeout != None and (time.time() - startTime) > timeout):
                 receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                 return receiveArray
             if self.ser.inWaiting() > 0:
