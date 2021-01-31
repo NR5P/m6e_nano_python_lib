@@ -2,6 +2,7 @@ from constants import *
 from typing import Tuple, List
 import serial
 import time
+import keyboard
 
 class RFID:
     def __init__(self):
@@ -15,11 +16,6 @@ class RFID:
     def startReading(self, rfOnTime, rfOffTime):
         self.ser.reset_input_buffer()
         self.disableReadFilter()
-        # below example on readtime = 480 off = 481
-        # ff 14 2f 00 00 01 22 00 00 05 0b 22 10 05 1b [01
-        # e0] [01 e1] 00 57 01 00 70 14
-
-        # working configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B, 0x01, 0xe0, 0x01, 0xe1, 0x00, 0x57, 0x01, 0x00]
 
         configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B] 
         configBlob.append(rfOnTime >> 8 & 0xFF)
@@ -31,9 +27,6 @@ class RFID:
         configBlob.append(1)
         configBlob.append(0)
 
-        #old configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x07, 0x22, 0x10, 0x00, 0x1B, 0x03, 0xE8, 0x01, 0xFF]
-
-
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, timeout=None)
 
     def setAntennaPort(self):
@@ -43,14 +36,7 @@ class RFID:
     # Sets the protocol of the module
     # Currently only GEN2 has been tested and supported but others are listed here for reference
     # and possible future support
-    # TMR_TAG_PROTOCOL_NONE              = 0x00
-    # TMR_TAG_PROTOCOL_ISO180006B        = 0x03
-    # TMR_TAG_PROTOCOL_GEN2              = 0x05
-    # TMR_TAG_PROTOCOL_ISO180006B_UCODE  = 0x06
-    # TMR_TAG_PROTOCOL_IPX64             = 0x07
-    # TMR_TAG_PROTOCOL_IPX256            = 0x08
-    # TMR_TAG_PROTOCOL_ATA               = 0x1D
-    def setTagProtocol(self, protocol = 0x05):
+    def setTagProtocol(self, protocol = TMR_TAG_PROTOCOL_GEN2):
         data = []
         data.append(0) # Opcode expects 16-bits
         data.append(protocol)
@@ -84,18 +70,9 @@ class RFID:
     def getPowerMode(self):
         self.sendMessage(TMR_SR_OPCODE_GET_POWER_MODE, [])
 
-    def setRegion(self):
-        # 0x04 = IN
-        # 0x05 = JP
-        # 0x06 = PRC
-        # 0x08 = EU3
-        # 0x09 = KR2
-        # 0x0B = AU
-        # 0x0C = NZ
-        # 0x0D = NAS2 (North America)
-        # 0xFF = OPEN
+    def setRegion(self, region):
         data = bytearray()
-        data.append(0x08)
+        data.append(region)
         self.sendMessage(TMR_SR_OPCODE_SET_REGION, data)
 
     def readData(self, bank, address, timeOut):
@@ -181,6 +158,16 @@ class RFID:
             msg.append(i)
         return self.sendCommand(timeout, waitforresponse, msg)
 
+    def checkTimeOut(self, startTime, timeout):
+        if timeout != None and (time.time() - startTime) > timeout:
+            return True 
+        return False
+
+    def checkKeyPress(self):
+        if keyboard.is_pressed("q"):
+            self.stopReading()
+            return True
+
     def sendCommand(self, timeout: int, waitforresponse: bool, msg: bytearray) -> List:
         msg.insert(0,0xFF) # universal header at beginnning
         msgLength = msg[1]
@@ -196,44 +183,50 @@ class RFID:
         # wait for response with timeout
         startTime = time.time()
         while self.ser.inWaiting() < 1:
-            if (timeout != None and (time.time() - startTime) > timeout):
+            if self.checkTimeOut(startTime, timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
                 return
 
-        msgLength = MAX_MSG_SIZE - 1
-        spot = 0
-        receiveArray = []
-        while spot < msgLength:
-            if (timeout != None and (time.time() - startTime) > timeout):
-                receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
-                return receiveArray
-            if self.ser.inWaiting() > 0:
-                receiveArray.append(int.from_bytes(self.ser.read(size=1),"little"))
-                if spot == 1:
-                    msgLength = receiveArray[1] + 7
-                spot += 1
-        if self.debug == True:
-            print("response: ")
-            self.printMessageArray(receiveArray)
 
-        crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
-        if (receiveArray[msgLength - 2] != (crc >> 8)) or (receiveArray[msgLength - 1] != (crc & 0xFF)):
-            receiveArray[0] = ERROR_CORRUPT_RESPONSE
-            if (self.debug == True):
-                print("CORRUPT RESPONSE")
-                return receiveArray
+        while True:
+            msgLength = MAX_MSG_SIZE - 1
+            spot = 0
+            receiveArray = []
+            if self.checkKeyPress() == True:
+                return
+            while spot < msgLength:
+                if self.checkTimeOut(startTime, timeout):
+                    receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
+                    return receiveArray
+                if self.ser.inWaiting() > 0:
+                    receiveArray.append(int.from_bytes(self.ser.read(size=1),"little"))
+                    if spot == 1:
+                        msgLength = receiveArray[1] + 7
+                    spot += 1
+            if self.debug == True:
+                print("response: ")
+                self.printMessageArray(receiveArray)
 
-        # If crc is ok, check that opcode matches (did we get a response to the command we sent or a different one?)
-        if (receiveArray[2] != opcode):
-            receiveArray[0] = ERROR_WRONG_OPCODE_RESPONSE
-            if (self.debug == True):
-                print("WRONG OPCODE RESPONSE")
-                return receiveArray
+            # check crc for corrupted response
+            crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
+            if (receiveArray[msgLength - 2] != (crc >> 8)) or (receiveArray[msgLength - 1] != (crc & 0xFF)):
+                receiveArray[0] = ERROR_CORRUPT_RESPONSE
+                if (self.debug == True):
+                    print("CORRUPT RESPONSE")
+                    return receiveArray
 
-        # If everything is ok, load all ok into msg array
-        receiveArray[0] = ALL_GOOD
-        return receiveArray
+            # check that opcode matches (did we get a response to the command we sent or a different one?)
+            if (receiveArray[2] != opcode):
+                receiveArray[0] = ERROR_WRONG_OPCODE_RESPONSE
+                if (self.debug == True and timeout != None):
+                    print("WRONG OPCODE RESPONSE")
+                    return receiveArray
+
+            # If everything is ok, load all ok into msg array
+            receiveArray[0] = ALL_GOOD
+            if timeout != None:
+                return receiveArray
 
     def calculateCRC(self, buf):
         crc = 0xFFFF
