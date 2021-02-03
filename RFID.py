@@ -29,6 +29,20 @@ class RFID:
 
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, timeout=None)
 
+    def getSignalLevelDB(self, msgArray) -> int:
+        if len(msgArray) > 13 and msgArray[12] != 0:
+            return msgArray[12] - 256
+
+    def getEpcTagNumber(self, msgArray) -> str:
+        epcTagNum = ""
+        if len(msgArray) > 19:
+            epcLength = msgArray[20] / 8
+            for i in range(22,len(msgArray)-4):
+                if msgArray[i] < 0x10:
+                    epcTagNum += "0"
+                epcTagNum += hex(msgArray[i])[2:]
+        return epcTagNum
+
     def setAntennaPort(self):
         configBlob = [0x01, 0x01]
         self.sendMessage(TMR_SR_OPCODE_SET_ANTENNA_PORT, configBlob)
@@ -44,6 +58,8 @@ class RFID:
         self.sendMessage(TMR_SR_OPCODE_SET_TAG_PROTOCOL, data)
 
     def printMessageArray(self, msg) -> None:
+        #print(self.getSignalLevelDB(msg))
+        print(self.getEpcTagNumber(msg))
         if self.debug == True:
             amtToPrint = msg[1] + 5
             if amtToPrint > MAX_MSG_SIZE:
@@ -129,6 +145,7 @@ class RFID:
         configBlob = [0x00, 0x00, 0x02]
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, waitforresponse=False) #Do not wait for response
 
+    # maximum read power is 2700 for 27db
     def setReadPower(self, powerSetting: int) -> None:
         if powerSetting > 32767:
             powerSetting = 2700

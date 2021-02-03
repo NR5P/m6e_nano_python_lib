@@ -4,7 +4,7 @@ from constants import *
 ############configuration settings########################
 rfOnTime = 500
 rfOffTime = 500
-readPower = 1000
+readPower = 2700
 ##########################################################
 
 from RFID import RFID
