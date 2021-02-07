@@ -1,20 +1,19 @@
 from constants import *
-from typing import Tuple, List
-import serial
+from machine import UART
 import time
-import keyboard
 
 class RFID:
     def __init__(self):
         self.debug = True
         self.opcode = ''
-        self.ser = serial.Serial(
-            port='/dev/ttyUSB0',
-            baudrate=115200,
+        self.uart = UART(
+            1,
+            115200,
         )
+        self.uart.init(115200, bits=8, parity=None, stop=1)
 
     def startReading(self, rfOnTime, rfOffTime):
-        self.ser.reset_input_buffer()
+        self.uart.read()
         self.disableReadFilter()
 
         configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B] 
@@ -169,6 +168,7 @@ class RFID:
 
     def sendMessage(self, opcode: int, data: List[int], timeout: int = COMMAND_TIME_OUT, waitforresponse: bool = True) -> List:
         msg = bytearray()
+        msg.append(0xFF) # universal header at beginnning
         msg.append(len(data))
         msg.append(opcode)
         for i in data:
@@ -180,13 +180,7 @@ class RFID:
             return True 
         return False
 
-    def checkKeyPress(self):
-        if keyboard.is_pressed("q"):
-            self.stopReading()
-            return True
-
     def sendCommand(self, timeout: int, waitforresponse: bool, msg: bytearray) -> List:
-        msg.insert(0,0xFF) # universal header at beginnning
         msgLength = msg[1]
         opcode = msg[2]
 
@@ -194,12 +188,13 @@ class RFID:
         crc = self.calculateCRC(msg)
         msg.append(crc >> 8)
         msg.append(crc & 0xFF)
-        self.ser.reset_input_buffer() # clear anything in buffer
-        self.ser.write(msg)
+        self.uart.read()
+        print(msg)
+        self.uart.write(msg)
 
         # wait for response with timeout
         startTime = time.time()
-        while self.ser.inWaiting() < 1:
+        while self.uart.any() < 1:
             if self.checkTimeOut(startTime, timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
@@ -210,14 +205,12 @@ class RFID:
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
             receiveArray = []
-            if self.checkKeyPress() == True:
-                return
             while spot < msgLength:
                 if self.checkTimeOut(startTime, timeout):
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
-                if self.ser.inWaiting() > 0:
-                    receiveArray.append(int.from_bytes(self.ser.read(size=1),"little"))
+                if self.uart.any() > 0:
+                    receiveArray.append(int.from_bytes(self.uart.read(size=1),"little"))
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1

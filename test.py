@@ -10,6 +10,7 @@ readPower = 2700
 from RFID import RFID
 rf = RFID()
 rf.setBaudRate(115200)
+print("set baud rate")
 rf.setTagProtocol(TMR_TAG_PROTOCOL_GEN2)
 rf.setAntennaPort()
 rf.setRegion(REGION_EU3)
