@@ -1,5 +1,6 @@
 from constants import *
 from machine import UART
+from machine import Pin
 import time
 
 class RFID:
@@ -8,9 +9,9 @@ class RFID:
         self.opcode = ''
         self.uart = UART(
             1,
-            115200,
+            baudrate=115200,
         )
-        self.uart.init(115200, bits=8, parity=None, stop=1)
+        #self.uart.init(115200, bits=8, parity=None, stop=1)
 
     def startReading(self, rfOnTime, rfOffTime):
         self.uart.read()
@@ -189,7 +190,6 @@ class RFID:
         msg.append(crc >> 8)
         msg.append(crc & 0xFF)
         self.uart.read()
-        print(msg)
         self.uart.write(msg)
 
         # wait for response with timeout
@@ -210,7 +210,8 @@ class RFID:
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
                 if self.uart.any() > 0:
-                    receiveArray.append(int.from_bytes(self.uart.read(size=1),"little"))
+                    print("anything")
+                    receiveArray.append(int.from_bytes(self.uart.read(1),"little"))
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1
