@@ -10,8 +10,10 @@ class RFID:
         self.uart = UART(
             1,
             baudrate=115200,
+            tx=17,
+            rx=16
         )
-        #self.uart.init(115200, bits=8, parity=None, stop=1)
+        #self.uart.init(115200, bits=8, parity=None, stop=0)
 
     def startReading(self, rfOnTime, rfOffTime):
         self.uart.read()
