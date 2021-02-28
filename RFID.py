@@ -4,12 +4,12 @@ from machine import Pin
 import time
 
 class RFID:
-    def __init__(self):
+    def __init__(self, baud):
         self.debug = True
         self.opcode = ''
         self.uart = UART(
             1,
-            baudrate=115200,
+            baudrate=baud,
             tx=17,
             rx=16
         )
@@ -196,13 +196,14 @@ class RFID:
 
         # wait for response with timeout
         startTime = time.time()
+        print("before")
         while self.uart.any() < 1:
             if self.checkTimeOut(startTime, timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
                 return
 
-
+        print("test")
         while True:
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
