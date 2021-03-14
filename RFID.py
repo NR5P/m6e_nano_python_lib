@@ -1,6 +1,7 @@
 from constants import *
 from machine import UART
 from machine import Pin
+#from Bluetooth import Bluetooth
 import time
 
 class RFID:
@@ -13,7 +14,11 @@ class RFID:
             tx=17,
             rx=16
         )
-        #self.uart.init(115200, bits=8, parity=None, stop=0)
+        #self.bluetooth = Bluetooth()
+
+    #def sendOverBluetooth(data):
+    #    if self.bluetooth.is_connected():
+    #        self.bluetooth.send(data)
 
     def startReading(self, rfOnTime, rfOffTime):
         self.uart.read()
@@ -196,14 +201,12 @@ class RFID:
 
         # wait for response with timeout
         startTime = time.time()
-        print("before")
         while self.uart.any() < 1:
             if self.checkTimeOut(startTime, timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
                 return
 
-        print("test")
         while True:
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
@@ -213,15 +216,15 @@ class RFID:
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
                 if self.uart.any() > 0:
-                    print("anything")
                     receiveArray.append(int.from_bytes(self.uart.read(1),"little"))
+                    print(receiveArray)
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1
             if self.debug == True:
-                print("response: ")
                 self.printMessageArray(receiveArray)
 
+            print("before crc")
             # check crc for corrupted response
             crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
             if (receiveArray[msgLength - 2] != (crc >> 8)) or (receiveArray[msgLength - 1] != (crc & 0xFF)):
@@ -236,7 +239,7 @@ class RFID:
                 if (self.debug == True and timeout != None):
                     print("WRONG OPCODE RESPONSE")
                     return receiveArray
-
+            print("end")
             # If everything is ok, load all ok into msg array
             receiveArray[0] = ALL_GOOD
             if timeout != None:

@@ -10,7 +10,7 @@ baudrate = 115200 # 115200 is default for m6e nano
 
 from RFID import RFID
 rf = RFID(baudrate)
-##rf.setBaudRate(baudrate)
+#rf.setBaudRate(baudrate)
 rf.setTagProtocol(TMR_TAG_PROTOCOL_GEN2)
 rf.setAntennaPort()
 rf.setRegion(REGION_EU3)
