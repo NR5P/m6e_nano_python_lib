@@ -54,7 +54,7 @@ class RFID:
 
     def setAntennaPort(self):
         configBlob = [0x01, 0x01]
-        self.sendMessage(TMR_SR_OPCODE_SET_ANTENNA_PORT, configBlob)
+        self.sendMessage(TMR_SR_OPCODE_SET_ANTENNA_PORT, configBlob, waitforresponse=False)
 
     # Sets the protocol of the module
     # Currently only GEN2 has been tested and supported but others are listed here for reference
@@ -64,7 +64,7 @@ class RFID:
         data.append(0) # Opcode expects 16-bits
         data.append(protocol)
 
-        self.sendMessage(TMR_SR_OPCODE_SET_TAG_PROTOCOL, data)
+        self.sendMessage(TMR_SR_OPCODE_SET_TAG_PROTOCOL, data, waitforresponse=False)
 
     def printMessageArray(self, msg) -> None:
         #print(self.getSignalLevelDB(msg))
@@ -98,7 +98,7 @@ class RFID:
     def setRegion(self, region):
         data = bytearray()
         data.append(region)
-        self.sendMessage(TMR_SR_OPCODE_SET_REGION, data)
+        self.sendMessage(TMR_SR_OPCODE_SET_REGION, data, waitforresponse=False)
 
     def readData(self, bank, address, timeOut):
         data = bytearray()
@@ -131,7 +131,7 @@ class RFID:
         data.append(1)
         data.append(option1)
         data.append(option2)
-        self.sendMessage(TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS, data)
+        self.sendMessage(TMR_SR_OPCODE_SET_READER_OPTIONAL_PARAMS, data, waitforresponse=False)
 
     def setBaudRate(self, baudRate: int) -> None:
         data = bytearray()
@@ -164,7 +164,7 @@ class RFID:
         data = bytearray()
         for i in range(2):
             data.append(0xFF & (powerSetting >> (8 * (2 - 1 - i))))
-        self.sendMessage(TMR_SR_OPCODE_SET_READ_TX_POWER, data)
+        self.sendMessage(TMR_SR_OPCODE_SET_READ_TX_POWER, data, waitforresponse=False)
 
     def getReadPower(self):
         data = bytearray()
@@ -206,13 +206,13 @@ class RFID:
 
         # wait for response with timeout
         startTime = time.time()
-        while self.uart.any() < 1:
+        while self.uart.any() < 1 and waitforresponse:
             if self.checkTimeOut(startTime, timeout):
                 print("NO RESPONSE FROM MODULE")
                 msg[0] = ERROR_COMMAND_RESPONSE_TIMEOUT
                 return
 
-        while True:
+        while waitforresponse:
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
             receiveArray = []
