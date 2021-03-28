@@ -21,7 +21,9 @@ class RFID:
             self.bluetooth.send(data)
 
     def startReading(self, rfOnTime, rfOffTime):
-        self.uart.read()
+        while self.uart.any() > 0:
+            print("clearing buffer")
+            self.uart.read()
         self.disableReadFilter()
 
         configBlob = [0x00, 0x00, 0x01, 0x22, 0x00, 0x00, 0x05, 0x0b, 0x22, 0x10, 0x05, 0x1B] 
@@ -197,7 +199,9 @@ class RFID:
         crc = self.calculateCRC(msg)
         msg.append(crc >> 8)
         msg.append(crc & 0xFF)
-        self.uart.read() # read all clearn the buffer
+        while self.uart.any() > 0:
+            print("clearing buffer")
+            self.uart.read()
         self.uart.write(msg)
 
         # wait for response with timeout
@@ -209,16 +213,15 @@ class RFID:
                 return
 
         while True:
-            print("test")
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
             receiveArray = []
             while spot < msgLength:
+                print(receiveArray)
                 if self.checkTimeOut(startTime, timeout):
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
                 if self.uart.any() > 0:
-                    print(receiveArray)
                     receiveArray.append(int.from_bytes(self.uart.read(1),"little"))
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
@@ -241,8 +244,7 @@ class RFID:
                 if (self.debug == True and timeout != None):
                     print("WRONG OPCODE RESPONSE")
                     #return receiveArray
-            # If everything is ok, load all ok into msg array
-            receiveArray[0] = ALL_GOOD
+
             if timeout != None:
                 return receiveArray
 

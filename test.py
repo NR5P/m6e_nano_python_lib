@@ -2,15 +2,15 @@ import time
 from constants import *
 
 ############configuration settings########################
-rfOnTime = 500
-rfOffTime = 500
+rfOnTime = 200
+rfOffTime = 1000
 readPower = 2700
 baudrate = 115200 # 115200 is default for m6e nano
 ##########################################################
 
 from RFID import RFID
 rf = RFID(baudrate)
-rf.stopReading() # stop reading if it is reading
+#rf.stopReading() # stop reading if it is reading
 #rf.setBaudRate(baudrate)
 print("before")
 rf.setTagProtocol(TMR_TAG_PROTOCOL_GEN2)
