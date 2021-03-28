@@ -1,11 +1,11 @@
 from constants import *
 from machine import UART
 from machine import Pin
-#from Bluetooth import Bluetooth
+from Bluetooth import Bluetooth
 import time
 
 class RFID:
-    def __init__(self, baud):
+    def __init__(self, baud=115200):
         self.debug = True
         self.opcode = ''
         self.uart = UART(
@@ -16,9 +16,9 @@ class RFID:
         )
         #self.bluetooth = Bluetooth()
 
-    #def sendOverBluetooth(data):
-    #    if self.bluetooth.is_connected():
-    #        self.bluetooth.send(data)
+    def sendOverBluetooth(data):
+        if self.bluetooth.is_connected():
+            self.bluetooth.send(data)
 
     def startReading(self, rfOnTime, rfOffTime):
         self.uart.read()
@@ -66,7 +66,7 @@ class RFID:
 
     def printMessageArray(self, msg) -> None:
         #print(self.getSignalLevelDB(msg))
-        print(self.getEpcTagNumber(msg))
+        print("epc #: " + self.getEpcTagNumber(msg))
         if self.debug == True:
             amtToPrint = msg[1] + 5
             if amtToPrint > MAX_MSG_SIZE:
@@ -181,6 +181,7 @@ class RFID:
         msg.append(opcode)
         for i in data:
             msg.append(i)
+        print("before send command")
         return self.sendCommand(timeout, waitforresponse, msg)
 
     def checkTimeOut(self, startTime, timeout):
@@ -196,7 +197,7 @@ class RFID:
         crc = self.calculateCRC(msg)
         msg.append(crc >> 8)
         msg.append(crc & 0xFF)
-        self.uart.read()
+        self.uart.read() # read all clearn the buffer
         self.uart.write(msg)
 
         # wait for response with timeout
@@ -208,6 +209,7 @@ class RFID:
                 return
 
         while True:
+            print("test")
             msgLength = MAX_MSG_SIZE - 1
             spot = 0
             receiveArray = []
@@ -216,30 +218,29 @@ class RFID:
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
                 if self.uart.any() > 0:
-                    receiveArray.append(int.from_bytes(self.uart.read(1),"little"))
                     print(receiveArray)
+                    receiveArray.append(int.from_bytes(self.uart.read(1),"little"))
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1
+            #self.sendOverBluetooth(receiveArray)
             if self.debug == True:
                 self.printMessageArray(receiveArray)
 
-            print("before crc")
             # check crc for corrupted response
             crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
             if (receiveArray[msgLength - 2] != (crc >> 8)) or (receiveArray[msgLength - 1] != (crc & 0xFF)):
                 receiveArray[0] = ERROR_CORRUPT_RESPONSE
                 if (self.debug == True):
                     print("CORRUPT RESPONSE")
-                    return receiveArray
+                    #return receiveArray
 
             # check that opcode matches (did we get a response to the command we sent or a different one?)
             if (receiveArray[2] != opcode):
                 receiveArray[0] = ERROR_WRONG_OPCODE_RESPONSE
                 if (self.debug == True and timeout != None):
                     print("WRONG OPCODE RESPONSE")
-                    return receiveArray
-            print("end")
+                    #return receiveArray
             # If everything is ok, load all ok into msg array
             receiveArray[0] = ALL_GOOD
             if timeout != None:
