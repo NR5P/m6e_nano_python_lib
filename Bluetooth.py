@@ -42,8 +42,8 @@ class Bluetooth:
         ((self._handle_tx, self._handle_rx),) = self._ble.gatts_register_services((_UART_SERVICE,))
         self._connections = set()
         self._write_callback = None
-        self._payload = advertising_payload(name=name, services=[_UART_UUID])
-        #self._payload = "testing"
+        #self._payload = advertising_payload(name=name, services=[_UART_UUID])
+        self._payload = "testing"
         self._advertise()
 
     def _irq(self, event, data):

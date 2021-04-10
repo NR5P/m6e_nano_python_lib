@@ -14,9 +14,9 @@ class RFID:
             tx=17,
             rx=16
         )
-        #self.bluetooth = Bluetooth()
+        self.bluetooth = Bluetooth()
 
-    def sendOverBluetooth(data):
+    def sendOverBluetooth(self, data):
         if self.bluetooth.is_connected():
             self.bluetooth.send(data)
 
@@ -38,9 +38,9 @@ class RFID:
 
         self.sendMessage(TMR_SR_OPCODE_MULTI_PROTOCOL_TAG_OP, configBlob, timeout=None)
 
-    def getSignalLevelDB(self, msgArray) -> int:
+    def getSignalLevelDB(self, msgArray) -> str:
         if len(msgArray) > 13 and msgArray[12] != 0:
-            return msgArray[12] - 256
+            return str(msgArray[12] - 256)
 
     def getEpcTagNumber(self, msgArray) -> str:
         epcTagNum = ""
@@ -68,7 +68,8 @@ class RFID:
 
     def printMessageArray(self, msg) -> None:
         #print(self.getSignalLevelDB(msg))
-        print("epc #: " + self.getEpcTagNumber(msg))
+        if self.getEpcTagNumber(msg) != "":
+            print(self.getEpcTagNumber(msg) + "~" + self.getSignalLevelDB(msg))
         if self.debug == True:
             amtToPrint = msg[1] + 5
             if amtToPrint > MAX_MSG_SIZE:
@@ -81,7 +82,7 @@ class RFID:
                     printMsg += "0"
                 printMsg += hex(msg[i])[2:]
                 printMsg += "]"
-            print(printMsg)
+            #print(printMsg)
 
     def readTagEPC(self) -> str:
         bank = 0x01
@@ -135,6 +136,12 @@ class RFID:
 
     def setBaudRate(self, baudRate: int) -> None:
         data = bytearray()
+        self.uart = UART(
+            1,
+            baudrate=baud,
+            tx=17,
+            rx=16
+        )
         for i in range(2):
             data.append(0xFF & (baudRate >> (8 * (2 - 1 - i))))
 
@@ -217,7 +224,6 @@ class RFID:
             spot = 0
             receiveArray = []
             while spot < msgLength:
-                print(receiveArray)
                 if self.checkTimeOut(startTime, timeout):
                     receiveArray.append(ERROR_COMMAND_RESPONSE_TIMEOUT)
                     return receiveArray
@@ -226,7 +232,7 @@ class RFID:
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1
-            #self.sendOverBluetooth(receiveArray)
+            self.sendOverBluetooth(receiveArray)
             if self.debug == True:
                 self.printMessageArray(receiveArray)
 
