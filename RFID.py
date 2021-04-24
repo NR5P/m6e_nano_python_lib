@@ -18,7 +18,7 @@ class RFID:
 
     def sendOverBluetooth(self, data):
         if self.bluetooth.is_connected():
-            self.bluetooth.send(data)
+            self.bluetooth.send(bytes(data))
 
     def startReading(self, rfOnTime, rfOffTime):
         while self.uart.any() > 0:
@@ -163,9 +163,9 @@ class RFID:
 
     # maximum read power is 2700 for 27db
     def setReadPower(self, powerSetting: int) -> None:
-        if powerSetting > 32767:
+        if powerSetting > 2700:
             powerSetting = 2700
-        if powerSetting < -32768:
+        if powerSetting < 0:
             powerSetting = 0
 
         data = bytearray()
@@ -232,9 +232,9 @@ class RFID:
                     if spot == 1:
                         msgLength = receiveArray[1] + 7
                     spot += 1
-            self.sendOverBluetooth(receiveArray)
             if self.debug == True:
                 self.printMessageArray(receiveArray)
+            self.sendOverBluetooth(receiveArray)
 
             # check crc for corrupted response
             crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes

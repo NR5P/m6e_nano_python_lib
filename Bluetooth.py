@@ -5,6 +5,18 @@ from micropython import const
 
 # https://www.jaredwolff.com/get-started-with-bluetooth-low-energy/ link to helpful info on connected to ble devices for testing in linux 
 
+_ADV_TYPE_FLAGS = const(0x01)
+_ADV_TYPE_NAME = const(0x09)
+_ADV_TYPE_UUID16_COMPLETE = const(0x3)
+_ADV_TYPE_UUID32_COMPLETE = const(0x5)
+_ADV_TYPE_UUID128_COMPLETE = const(0x7)
+_ADV_TYPE_UUID16_MORE = const(0x2)
+_ADV_TYPE_UUID32_MORE = const(0x4)
+_ADV_TYPE_UUID128_MORE = const(0x6)
+_ADV_TYPE_APPEARANCE = const(0x19)
+
+
+
 _IRQ_CENTRAL_CONNECT = const(1 << 0)
 _IRQ_CENTRAL_DISCONNECT = const(1 << 1)
 _IRQ_GATTS_WRITE = const(1 << 2)
@@ -42,8 +54,7 @@ class Bluetooth:
         ((self._handle_tx, self._handle_rx),) = self._ble.gatts_register_services((_UART_SERVICE,))
         self._connections = set()
         self._write_callback = None
-        #self._payload = advertising_payload(name=name, services=[_UART_UUID])
-        self._payload = "testing"
+        self._payload = self.advertising_payload(name="esp32", services=[_UART_UUID])
         self._advertise()
 
     def _irq(self, event, data):
@@ -77,3 +88,34 @@ class Bluetooth:
 
     def on_write(self, callback):
         self._write_callback = callback
+
+    def advertising_payload(self, limited_disc=False, br_edr=False, name=None, services=None, appearance=0):
+        payload = bytearray()
+
+        def _append(adv_type, value):
+            nonlocal payload
+            payload += struct.pack("BB", len(value) + 1, adv_type) + value
+
+        _append(
+            _ADV_TYPE_FLAGS,
+            struct.pack("B", (0x01 if limited_disc else 0x02) + (0x18 if br_edr else 0x04)),
+        )
+
+        if name:
+            _append(_ADV_TYPE_NAME, name)
+
+        if services:
+            for uuid in services:
+                b = bytes(uuid)
+                if len(b) == 2:
+                    _append(_ADV_TYPE_UUID16_COMPLETE, b)
+                elif len(b) == 4:
+                    _append(_ADV_TYPE_UUID32_COMPLETE, b)
+                elif len(b) == 16:
+                    _append(_ADV_TYPE_UUID128_COMPLETE, b)
+
+        # See org.bluetooth.characteristic.gap.appearance.xml
+        if appearance:
+            _append(_ADV_TYPE_APPEARANCE, struct.pack("<h", appearance))
+
+        return payload
