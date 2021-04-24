@@ -19,7 +19,7 @@ _ADV_TYPE_APPEARANCE = const(0x19)
 
 _IRQ_CENTRAL_CONNECT = const(1 << 0)
 _IRQ_CENTRAL_DISCONNECT = const(1 << 1)
-_IRQ_GATTS_WRITE = const(1 << 2)
+_IRQ_GATTS_WRITE = const(3)
 
 _FLAG_READ = const(0x0002)
 _FLAG_WRITE_NO_RESPONSE = const(0x0004)
@@ -72,6 +72,7 @@ class Bluetooth:
         elif event == _IRQ_GATTS_WRITE:
             conn_handle, value_handle = data
             value = self._ble.gatts_read(value_handle)
+            print(value) 
             if value_handle == self._handle_rx and self._write_callback:
                 self._write_callback(value)
 

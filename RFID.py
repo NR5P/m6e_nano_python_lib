@@ -17,8 +17,11 @@ class RFID:
         self.bluetooth = Bluetooth()
 
     def sendOverBluetooth(self, data):
+        sendString = ""
+        if self.getEpcTagNumber(data) != "":
+            sendString = self.getEpcTagNumber(data) + "~" + self.getSignalLevelDB(data)
         if self.bluetooth.is_connected():
-            self.bluetooth.send(bytes(data))
+            self.bluetooth.send(sendString)
 
     def startReading(self, rfOnTime, rfOffTime):
         while self.uart.any() > 0:
