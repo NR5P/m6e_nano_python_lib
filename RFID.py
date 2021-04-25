@@ -3,9 +3,11 @@ from machine import UART
 from machine import Pin
 from Bluetooth import Bluetooth
 import time
+import ujson
 
 class RFID:
     def __init__(self, baud=115200):
+        self.filename = "settings.json"
         self.debug = True
         self.opcode = ''
         self.uart = UART(
@@ -14,7 +16,44 @@ class RFID:
             tx=17,
             rx=16
         )
-        self.bluetooth = Bluetooth()
+        self.bluetooth = Bluetooth(self.handleWrite)
+
+    def handleWrite(self, value):
+        valueString = ""
+        if isinstance(value, bytes):
+            valueString = value.decode("utf-8")
+        else:
+            valueString = value
+        valueString.replace(" ", "")
+        commandsList = valueString.split(",")        
+        for i in commandsList:
+            com, value = i.split(":")
+            self.handleCommand(com, value)
+
+    def handleCommand(self, com, value):
+        if not com:
+            return 
+        if not value:
+            value = ""
+        com = com.lower()
+        value = value.lower()
+        if com == "stopreading":
+            self.stopReading() 
+        if com == "setreadpower":
+            self.setReadPower(int(value))
+        if com == "getreadpower": #TODO:
+            self.getReadPower()
+        if com == "startreading": 
+            rfOnTime, rfOffTime = self.getRfOnAndOffTime()
+            self.startReading(rfOnTime, rfOffTime)
+
+    def getRfOnAndOffTime(self):
+        file = open(self.filename, "r")
+        settingsDict = ujson.load(file)
+        file.close()
+        return (settingsDict["rfontime"], settingsDict["rfofftime"])
+        pass
+
 
     def sendOverBluetooth(self, data):
         sendString = ""
@@ -174,12 +213,18 @@ class RFID:
         data = bytearray()
         for i in range(2):
             data.append(0xFF & (powerSetting >> (8 * (2 - 1 - i))))
+        file = open(self.filename, "w")
+        settingsDict = ujson.load(file)
+        settingsDict["readpower"] = str(powerSetting)
+        ujson.dump(settingsDict, file)
+        file.close()
         self.sendMessage(TMR_SR_OPCODE_SET_READ_TX_POWER, data, waitforresponse=False)
 
     def getReadPower(self):
         data = bytearray()
         data.append(0x00)
-        self.sendMessage(TMR_SR_OPCODE_GET_READ_TX_POWER, data)
+        readPower = self.sendMessage(TMR_SR_OPCODE_GET_READ_TX_POWER, data)
+        print(readPower) #TODO: later ad bluetooth send for readpower
 
     def getWritePower(self):
         data = bytearray()

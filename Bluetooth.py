@@ -47,13 +47,13 @@ _UART_SERVICE = (
 )
 
 class Bluetooth:
-    def __init__(self, name="rfid_reader"):
+    def __init__(self, handleWrite, name="rfid_reader"):
         self._ble = ubluetooth.BLE()
         self._ble.active(True)
         self._ble.irq(self._irq)
         ((self._handle_tx, self._handle_rx),) = self._ble.gatts_register_services((_UART_SERVICE,))
         self._connections = set()
-        self._write_callback = None
+        self._write_callback = handleWrite
         self._payload = self.advertising_payload(name="esp32", services=[_UART_UUID])
         self._advertise()
 
