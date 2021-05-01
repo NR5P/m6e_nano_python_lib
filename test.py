@@ -10,7 +10,7 @@ baudrate = 115200 # 115200 is default for m6e nano
 filename = "settings.json"
 ##########################################################
 
-def getOrSetSettingsData(rfOnTime, rfOffTime, readPower, filename):
+def getOrSetSettingsData():
     if "settings.json" in os.listdir():
         file = open(filename, "r")
         settingsDict = ujson.loads(file.read())
@@ -27,7 +27,7 @@ def getOrSetSettingsData(rfOnTime, rfOffTime, readPower, filename):
         ujson.dump(settingsDict, file)
         file.close()
 
-getOrSetSettingsData(rfOnTime, rfOffTime, readPower, filename)
+getOrSetSettingsData()
 
 from RFID import RFID
 rf = RFID(rfOnTime, rfOffTime, readPower, baudrate)
