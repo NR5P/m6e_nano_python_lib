@@ -9,7 +9,7 @@ readPower = 2700
 baudrate = 115200 # 115200 is default for m6e nano
 ##########################################################
 
-def getSettingsData():
+def getOrSetSettingsData():
     if os.path.exists("settings.json"):
         file = open(self.filename, "r")
         settingsDict = ujson.load(file)
@@ -26,20 +26,16 @@ def getSettingsData():
         ujson.dump(settingsDict, file)
         file.close()
 
-getSettingsData()
+getOrSetSettingsData()
 
 from RFID import RFID
-rf = RFID(baudrate)
+rf = RFID(rfontime, rfOffTime, readPower, baudrate)
 rf.stopReading() # stop reading if it is reading
-#rf.setBaudRate(baudrate)
 rf.setTagProtocol(TMR_TAG_PROTOCOL_GEN2)
 rf.setAntennaPort()
 rf.setRegion(REGION_EU3)
 rf.setReadPower(readPower)
 
-#rf.getReadPower()
 rf.startReading(rfOnTime,rfOffTime)
-#rf.stopReading()
-
 #rf.getVersion()
 

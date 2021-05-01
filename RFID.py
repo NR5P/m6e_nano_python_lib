@@ -2,12 +2,14 @@ from constants import *
 from machine import UART
 from machine import Pin
 from Bluetooth import Bluetooth
-import time
-import ujson
+import time, ujson, os
 
 class RFID:
-    def __init__(self, baud=115200):
+    def __init__(self, rfOnTime, rfOffTime, readPower, baud=115200):
         self.filename = "settings.json"
+        self.rfOnTime = rfOnTime
+        self.rfOffTime = rfOffTime
+        self.readPower = readPower
         self.debug = True
         self.opcode = ''
         self.uart = UART(
@@ -30,6 +32,16 @@ class RFID:
             com, value = i.split(":")
             self.handleCommand(com, value)
 
+    def saveSettings(self):
+        if os.path.exists("settings.json"):
+            file = open(self.filename, "w")
+            settingsDict = ujson.load(file)
+            settingsDict["rfontime"] = self.rfOnTime
+            settingsDict["rfofftime"] = self.rfOffTime
+            settingsDict["readpower"] = self.readPower
+            ujson.dump(settingsDict, file)
+            file.close()
+
     def handleCommand(self, com, value):
         if not com:
             return 
@@ -39,13 +51,31 @@ class RFID:
         value = value.lower()
         if com == "stopreading":
             self.stopReading() 
-        if com == "setreadpower":
+        elif com == "setrfontimems": #milliseconds
+            self.stopReading() 
+            self.rfOnTime = int(value)
+            self.saveSettings()
+            self.startReading(self.rfOnTime, self.rfOffTime)
+        elif com == "setrfofftimems": #milliseconds
+            self.stopReading() 
+            self.rfOffTime = int(value)
+            self.saveSettings()
+            self.startReading(self.rfOnTime, self.rfOffTime)
+        elif com == "setreadpower":
+            self.stopReading()
             self.setReadPower(int(value))
-        if com == "getreadpower": #TODO:
-            self.getReadPower()
-        if com == "startreading": 
+            self.saveSettings()
+            self.startReading(self.rfOnTime, self.rfOffTime)
+        elif com == "startreading": 
+            self.startReading(self.rfOnTime, self.rfOffTime)
+        elif com == "getreadpower": 
+            self.sendStringOverBluetooth(self.getReadPower())
+        elif com == "getrfonoff": 
             rfOnTime, rfOffTime = self.getRfOnAndOffTime()
-            self.startReading(rfOnTime, rfOffTime)
+            txt = "rf on: " + str(rfOnTime) + "; " + "rf off: " + str(rfOffTime)
+            self.sendStringOverBluetooth(txt)
+        else: 
+            self.sendStringOverBluetooth("invalid command")
 
     def getRfOnAndOffTime(self):
         file = open(self.filename, "r")
@@ -55,12 +85,19 @@ class RFID:
         pass
 
 
-    def sendOverBluetooth(self, data):
+    def sendTagInfoOverBluetooth(self, data):
         sendString = ""
         if self.getEpcTagNumber(data) != "":
             sendString = self.getEpcTagNumber(data) + "~" + self.getSignalLevelDB(data)
         if self.bluetooth.is_connected():
             self.bluetooth.send(sendString)
+
+    def sendStringOverBluetooth(self, txt):
+        if (not isinstance(txt, str)):
+            txt = str(txt)
+        print(txt)
+        if self.bluetooth.is_connected():
+            self.bluetooth.send(txt)
 
     def startReading(self, rfOnTime, rfOffTime):
         while self.uart.any() > 0:
@@ -213,18 +250,14 @@ class RFID:
         data = bytearray()
         for i in range(2):
             data.append(0xFF & (powerSetting >> (8 * (2 - 1 - i))))
-        file = open(self.filename, "w")
-        settingsDict = ujson.load(file)
-        settingsDict["readpower"] = str(powerSetting)
-        ujson.dump(settingsDict, file)
-        file.close()
+        self.readPower = powerSetting
         self.sendMessage(TMR_SR_OPCODE_SET_READ_TX_POWER, data, waitforresponse=False)
 
     def getReadPower(self):
         data = bytearray()
         data.append(0x00)
         readPower = self.sendMessage(TMR_SR_OPCODE_GET_READ_TX_POWER, data)
-        print(readPower) #TODO: later ad bluetooth send for readpower
+        return readPower
 
     def getWritePower(self):
         data = bytearray()
@@ -282,7 +315,7 @@ class RFID:
                     spot += 1
             if self.debug == True:
                 self.printMessageArray(receiveArray)
-            self.sendOverBluetooth(receiveArray)
+            self.sendTagInfoOverBluetooth(receiveArray)
 
             # check crc for corrupted response
             crc = self.calculateCRC(receiveArray[:-2]) # remove the header(0xff) and 2 crc bytes
