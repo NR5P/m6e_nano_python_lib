@@ -11,7 +11,6 @@ class RFID:
         self.rfOffTime = rfOffTime
         self.readPower = readPower
         self.debug = True
-        self.opcode = ''
         self.uart = UART(
             1,
             baudrate=baud,

@@ -1,7 +1,7 @@
 import time, ujson, os
 from constants import *
 
-
+#TODO: test.py should be renamed to main.py so that the bootloader loads it on startup
 ############configuration settings########################
 rfOnTime = 50
 rfOffTime = 2000
@@ -30,6 +30,7 @@ def getOrSetSettingsData():
 getOrSetSettingsData()
 
 from RFID import RFID
+time.sleep(3) ##### give time for m6e nano to boot before initializing #####
 rf = RFID(rfOnTime, rfOffTime, readPower, baudrate)
 rf.stopReading() # stop reading if it is reading
 rf.setTagProtocol(TMR_TAG_PROTOCOL_GEN2)
