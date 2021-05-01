@@ -33,9 +33,9 @@ class RFID:
             self.handleCommand(com, value)
 
     def saveSettings(self):
-        if os.path.exists("settings.json"):
+        if "settings.json" in os.listdir():
+            settingsDict = {}
             file = open(self.filename, "w")
-            settingsDict = ujson.load(file)
             settingsDict["rfontime"] = self.rfOnTime
             settingsDict["rfofftime"] = self.rfOffTime
             settingsDict["readpower"] = self.readPower
@@ -79,7 +79,7 @@ class RFID:
 
     def getRfOnAndOffTime(self):
         file = open(self.filename, "r")
-        settingsDict = ujson.load(file)
+        settingsDict = ujson.loads(file.read())
         file.close()
         return (settingsDict["rfontime"], settingsDict["rfofftime"])
         pass
